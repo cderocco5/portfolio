@@ -1,0 +1,12 @@
+#langchain-google-genai 
+#duckduckgo-search
+beautifulsoup4
+ddgs
+langchain==0.3.25
+langchain-core==0.3.59
+langchain-openai==0.3.16
+langchain-community==0.3.24
+langchainhub
+openai
+pydantic
+python-dotenv

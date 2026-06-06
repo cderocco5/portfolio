@@ -1,0 +1,103 @@
+import os
+# Load environment variables from a .env file.
+
+from dotenv import load_dotenv
+
+# Define structured output models using Pydantic
+from pydantic import BaseModel
+
+# Langchain imports that we will use to interact with Gemini
+#from langchain_google_genai import ChatGoogleGenerativeAI
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+#from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.agents import initialize_agent
+from openai import OpenAI
+from langchain_openai import ChatOpenAI
+from langchain.prompts.chat import ChatPromptTemplate
+
+
+# Custom tools that we will use. These are pulled from our tools.py
+from tools import scrape_tool, search_tool, save_tool  
+
+class LeadResponse(BaseModel):
+    company: str
+    contact_info: str
+    email: str
+    summary: str 
+    outreach_message: str
+    tools_used: list[str]
+    
+    
+# define a list structure to hold multiple leads
+class LeadResponseList(BaseModel):
+    leads: list[LeadResponse]
+    
+# OpenAI
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+
+# tell llm how to format the responsees useing pydantic schema
+parser = PydanticOutputParser(pydantic_object=LeadResponseList)
+
+# instructions we give to LLM
+
+prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+            You are a sales enablement assistant.
+            1. Use the 'scrape' tool to find exactly 5 local small businesses in Vancouver, British Columbia, from a variety of industries, that might need IT services.
+            2. For each company identified by the 'scrape' tool, use the 'search' tool to gather detailed information from DuckDuckGo.
+            3. Analyze the searched website content to provide:
+                - company: The company name
+                - contact_info: Any available contact details
+                - summary: A brief qualification based on the scraped website content, focusing on their potential IT needs even if they are not an IT company.
+                - email addresses
+                - outreach message
+                - tools_used: List tools used        
+
+            Do not include extra text beyond the formatted output and the save confirmation message.
+            4. Return the output as a list of 5 entries in this format: {format_instructions}
+            5. After formatting the list of 5 entries, use the 'save_to_text' tool to send the json format to the text file. 
+            6. If the 'save' tool runs, say that you ran it. If you did not run the 'save' tool, say that you could not run it.
+            """,
+        ),
+        ("human", "{query}"),  # The actual user instruction
+        ("placeholder", "{agent_scratchpad}"),  # Where the agent's internal reasoning goes
+    ]
+).partial(format_instructions=parser.get_format_instructions())
+
+# tell LLM the tools we made in tools.py file. These are py functions i create
+tools = [scrape_tool, search_tool, save_tool]
+
+# create the agent with tool-calling abilities and structured reasoning
+agent = create_tool_calling_agent(
+#agent = create_openai_tools_agent(
+    llm=llm,
+    prompt=prompt,
+    tools=tools
+)
+
+# wrap the agent in an executor for running it with inputs
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# define the query that kciks off the lead generation process
+query = "Find and qualify exactly 5 local leads in New Jersey for IT Services. No more than 5 small businesses."
+
+# run agent with my query
+raw_response = agent_executor.invoke({"query": query})
+
+# parse the structured output using the Pydantic schema
+try:
+    structured_response = parser.parse(raw_response.get('output'))
+    print(structured_response)
+except Exception as e:
+    print("Error parsing response", e, "Raw Response : ", raw_response)
+    
+    

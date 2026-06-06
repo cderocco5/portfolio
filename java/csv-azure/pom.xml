@@ -1,0 +1,15 @@
+<dependencies>
+    <!-- Azure Blob Storage SDK -->
+    <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-storage-blob</artifactId>
+        <version>12.26.0</version>
+    </dependency>
+
+    <!-- Apache Commons CSV -->
+    <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-csv</artifactId>
+        <version>1.10.0</version>
+    </dependency>
+</dependencies>
